@@ -1,5 +1,5 @@
 from __future__ import annotations
-###
+
 """Lab 01 (skeleton): filtering/convolution + FFT tools (spatial & frequency domain)."""
 
 import argparse

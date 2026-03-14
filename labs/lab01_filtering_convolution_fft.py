@@ -26,7 +26,6 @@ def conv2d(image: npt.NDArray[np.generic], kernel: npt.NDArray[np.generic], bord
     Returns:
         `float32` array with the same shape as `image`.
     """
-    # Визначаємо типи заповнення меж
     mode_map = {
         "reflect": "symm",
         "constant": "fill",
@@ -41,7 +40,6 @@ def conv2d(image: npt.NDArray[np.generic], kernel: npt.NDArray[np.generic], bord
     if img_float.ndim == 2:
         return signal.convolve2d(img_float, kernel_float, mode='same', boundary=boundary).astype(np.float32)
     elif img_float.ndim == 3:
-        # Обробка кожного каналу окремо для кольорових зображень
         channels = []
         for c in range(img_float.shape[2]):
             channels.append(signal.convolve2d(img_float[:, :, c], kernel_float, mode='same', boundary=boundary))
@@ -60,10 +58,8 @@ def make_gaussian_kernel(ksize: int, sigma: float) -> npt.NDArray[np.float32]:
     Returns:
         `(ksize, ksize)` `float32` kernel.
     """
-    # Створюємо 1D ядро
     ax = np.linspace(-(ksize - 1) / 2., (ksize - 1) / 2., ksize)
     gauss = np.exp(-0.5 * np.square(ax) / np.square(sigma))
-    # Зовнішній добуток для 2D
     kernel = np.outer(gauss, gauss)
     return (kernel / kernel.sum()).astype(np.float32)
 
@@ -118,7 +114,6 @@ def apply_median_blur(image: npt.NDArray[np.generic], ksize: int) -> np.ndarray:
     Returns:
         Same shape/dtype as input.
     """
-    # Медіанний фільтр не є згорткою, використовуємо OpenCV
     return cv2.medianBlur(image.astype(np.uint8), ksize)
 
 
@@ -143,11 +138,9 @@ def add_salt_pepper_noise(
     """
     rng = np.random.default_rng(seed)
     out = image.copy()
-    # Сіль (білі пікселі)
     num_salt = np.ceil(amount * image.size * salt_vs_pepper)
     coords = [rng.integers(0, i - 1, int(num_salt)) for i in image.shape[:2]]
     out[tuple(coords)] = 255
-    # Перець (чорні пікселі)
     num_pepper = np.ceil(amount * image.size * (1.0 - salt_vs_pepper))
     coords = [rng.integers(0, i - 1, int(num_pepper)) for i in image.shape[:2]]
     out[tuple(coords)] = 0
@@ -300,10 +293,8 @@ def apply_frequency_filter(image: npt.NDArray[np.generic], filter_mask: npt.NDAr
     spec = fft2_image(image)
     spec_shifted = fftshift2(spec)
 
-    # Множення у частотній області
     filtered_spec_shifted = spec_shifted * filter_mask
 
-    # Зворотний зсув та зворотне FFT
     filtered_spec = np.fft.ifftshift(filtered_spec_shifted, axes=(0, 1))
     img_back = cv2.idft(filtered_spec)
     img_back = cv2.magnitude(img_back[..., 0], img_back[..., 1])

@@ -26,14 +26,14 @@ def haar_dwt1(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Returns:
         (approx, detail): each length ~N/2.
     """
-    # Якщо довжина непарна, додаємо один елемент (padding)
+    # Handle odd-length signals using reflect padding
     if x.size % 2 != 0:
         x = np.pad(x, (0, 1), mode='reflect')
 
-    # Решейпимо, щоб виділити пари сусідніх елементів
+    # Group adjacent elements into pairs
     pairs = x.reshape(-1, 2)
 
-    # Коефіцієнт 1/sqrt(2) для ортогональності
+    # Calculate average (approx) and difference (detail) with normalization
     approx = (pairs[:, 0] + pairs[:, 1]) / np.sqrt(2.0)
     detail = (pairs[:, 0] - pairs[:, 1]) / np.sqrt(2.0)
 
@@ -54,8 +54,7 @@ def haar_idwt1(approx: np.ndarray, detail: np.ndarray) -> np.ndarray:
     n = len(approx)
     reconstructed = np.empty(2 * n)
 
-    # Обернене перетворення:
-    # a = (s + d) / sqrt(2), b = (s - d) / sqrt(2)
+    # Inverse transform formulas for even and odd indices
     reconstructed[0::2] = (approx + detail) / np.sqrt(2.0)
     reconstructed[1::2] = (approx - detail) / np.sqrt(2.0)
 
@@ -72,7 +71,7 @@ def haar_dwt2(image: np.ndarray) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarr
     Returns:
         LL, (LH, HL, HH).
     """
-    # 1. Обробка рядків
+    # Process each row of the image
     row_approx = []
     row_detail = []
     for row in image:
@@ -83,7 +82,7 @@ def haar_dwt2(image: np.ndarray) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarr
     row_approx = np.array(row_approx)
     row_detail = np.array(row_detail)
 
-    # 2. Обробка стовпців (через транспонування)
+    # Process columns (via transposition for efficiency)
     def process_cols(mat):
         a_list, d_list = [], []
         for col in mat.T:
@@ -92,6 +91,7 @@ def haar_dwt2(image: np.ndarray) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarr
             d_list.append(d)
         return np.array(a_list).T, np.array(d_list).T
 
+    # Generate 4 sub-bands: LL, LH, HL, HH
     LL, LH = process_cols(row_approx)
     HL, HH = process_cols(row_detail)
 
@@ -111,11 +111,11 @@ def haar_idwt2(LL: np.ndarray, bands: tuple[np.ndarray, np.ndarray, np.ndarray])
     """
     LH, HL, HH = bands
 
-    # 1. Обернене по стовпцях
+    # Inverse DWT on columns first
     row_approx = np.array([haar_idwt1(LL[:, i], LH[:, i]) for i in range(LL.shape[1])]).T
     row_detail = np.array([haar_idwt1(HL[:, i], HH[:, i]) for i in range(HL.shape[1])]).T
 
-    # 2. Обернене по рядках
+    # Inverse DWT on rows to get final image
     reconstructed = np.array([haar_idwt1(row_approx[i], row_detail[i]) for i in range(row_approx.shape[0])])
 
     return reconstructed
@@ -133,12 +133,15 @@ def wavelet_threshold(coeffs: Any, threshold: float, mode: ThresholdMode = "soft
     Returns:
         Thresholded coefficients with same structure.
     """
+    # Recursively process tuples (LH, HL, HH)
     if isinstance(coeffs, (tuple, list)):
         return tuple(wavelet_threshold(c, threshold, mode) for c in coeffs)
 
     if mode == "hard":
+        # Keep values only if they exceed the threshold
         return coeffs * (np.abs(coeffs) >= threshold)
-    else:  # soft
+    else:  # soft thresholding
+        # Reduce magnitude of all coefficients towards zero
         return np.sign(coeffs) * np.maximum(np.abs(coeffs) - threshold, 0)
 
 
@@ -158,14 +161,14 @@ def wavelet_denoise(image: np.ndarray, levels: int, threshold: float, mode: Thre
     current_ll = image.astype(np.float32)
     coeffs_stack = []
 
-    # Декомпозиція
+    # Forward decomposition into multiple levels
     for _ in range(levels):
         current_ll, bands = haar_dwt2(current_ll)
-        # Порогова обробка деталей
+        # Apply thresholding to high-frequency detail bands
         th_bands = wavelet_threshold(bands, threshold, mode)
         coeffs_stack.append(th_bands)
 
-    # Реконструкція
+    # Backward reconstruction from denoised coefficients
     for th_bands in reversed(coeffs_stack):
         current_ll = haar_idwt2(current_ll, th_bands)
 
@@ -185,6 +188,7 @@ def stft1(
     Returns:
         `(freqs_hz, times_s, Zxx)` where `Zxx` is complex.
     """
+    # nperseg is window size, noverlap is frame_len - hop_len
     f, t, Zxx = signal.stft(x, fs=fs_hz, window=window, nperseg=frame_len, noverlap=frame_len - hop_len)
     return f, t, Zxx
 
@@ -201,6 +205,7 @@ def spectrogram_magnitude(Zxx: np.ndarray, log_scale: bool = True) -> np.ndarray
         Non-negative finite magnitude matrix.
     """
     mag = np.abs(Zxx)
+    # use np.log1p(x) for numeral stability (log(1+x))
     if log_scale:
         return np.log1p(mag)
     return mag
@@ -210,6 +215,7 @@ def normalize_to_uint8(x: npt.ArrayLike) -> npt.NDArray[np.uint8]:
     """Min-max normalize an array to `[0,255]` for visualization."""
     arr = np.asanyarray(x, dtype=np.float32)
     mn, mx = arr.min(), arr.max()
+    # Avoid division by zero for uniform arrays
     if mx - mn > 1e-7:
         arr = 255.0 * (arr - mn) / (mx - mn)
     else:

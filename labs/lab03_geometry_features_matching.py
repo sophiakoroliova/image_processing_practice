@@ -22,7 +22,6 @@ def warp_affine(image: np.ndarray, M: np.ndarray, out_shape: tuple[int, int], bo
     Returns:
         Warped image.
     """
-    # Map border string to OpenCV constant
     border_modes = {
         "reflect": cv2.BORDER_REFLECT,
         "constant": cv2.BORDER_CONSTANT,
@@ -30,7 +29,6 @@ def warp_affine(image: np.ndarray, M: np.ndarray, out_shape: tuple[int, int], bo
     }
     mode = border_modes.get(border, cv2.BORDER_REFLECT)
 
-    # dsize is (width, height) in OpenCV
     dsize = (out_shape[1], out_shape[0])
     return cv2.warpAffine(image, M, dsize, flags=cv2.INTER_LINEAR, borderMode=mode)
 
@@ -96,10 +94,8 @@ def match_descriptors(
     if desc1 is None or desc2 is None:
         return []
 
-    # ORB uses Hamming distance (binary descriptors)
     matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
 
-    # Use knnMatch for Lowe's ratio test (k=2)
     knn_matches = matcher.knnMatch(desc1, desc2, k=2)
 
     good_matches = []
@@ -107,7 +103,6 @@ def match_descriptors(
         if m.distance < ratio_test * n.distance:
             good_matches.append(m)
 
-    # Sort by distance (smaller is better)
     good_matches.sort(key=lambda x: x.distance)
     return good_matches
 
@@ -133,11 +128,9 @@ def estimate_homography_from_matches(
     if len(matches) < 4:
         return None, None
 
-        # Extract coordinates of matched points
     src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
 
-    # Find homography matrix using RANSAC
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, ransac_thresh)
 
     return H, mask

@@ -29,7 +29,7 @@ def warp_affine(image: np.ndarray, M: np.ndarray, out_shape: tuple[int, int], bo
     }
     mode = border_modes.get(border, cv2.BORDER_REFLECT)
 
-    dsize = (out_shape[1], out_shape[0])
+    dsize = (out_shape[1], out_shape[0]) # dsize is (width, height) in OpenCV
     return cv2.warpAffine(image, M, dsize, flags=cv2.INTER_LINEAR, borderMode=mode)
 
 

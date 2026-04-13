@@ -35,7 +35,28 @@ def mrf_energy(
     Returns:
         Scalar energy.
     """
-    raise NotImplementedError("mrf_energy is not implemented")
+    # Data term: fidelity to noisy observation
+    data_term = np.sum((x-y) ** 2)
+
+    # Smoothness term: pairwise differences on 4-connected neighborhood
+    diff_h = x[:,1:] - x[:, :-1]   # horizontal
+    diff_v = x[1:, :] - x[:-1, :]  # vertical
+
+    if penalty == "quadratic":
+        smooth_term = np.sum(diff_h ** 2) + np.sum(diff_v ** 2)
+    elif penalty == "huber":
+        def huber_penalty(d, delta):
+            abs_d = np.abs(d)
+            return np.where(abs_d <= delta,
+                            0.5 * d ** 2,
+                            delta * (abs_d - 0.5 * delta))
+
+        smooth_term = np.sum(huber_penalty(diff_h, huber_delta)) + \
+                      np.sum(huber_penalty(diff_v, huber_delta))
+    else:
+        raise ValueError(f"Unknown penalty: {penalty}")
+
+    return data_term + lambda_smooth * smooth_term
 
 
 def mrf_denoise(
@@ -60,12 +81,51 @@ def mrf_denoise(
     Returns:
         Restored image with the same shape as `y`.
     """
-    raise NotImplementedError("mrf_denoise is not implemented")
+    x = y.copy().astype(np.float32)
+
+    if penalty == "quadratic":
+        current_step = step * 0.032
+    else:
+        current_step = step
+
+    for it in range(num_iters):
+        grad_data = 2.0 * (x - y)
+        grad_smooth = np.zeros_like(x, dtype=np.float32)
+
+        # Horizontal
+        diff_h = x[:, 1:] - x[:, :-1]
+        grad_h = 2.0 * diff_h if penalty == "quadratic" else np.where(
+            np.abs(diff_h) <= huber_delta, diff_h, huber_delta * np.sign(diff_h)
+        )
+        grad_smooth[:, :-1] += grad_h
+        grad_smooth[:, 1:] -= grad_h
+
+        # Vertical
+        diff_v = x[1:, :] - x[:-1, :]
+        grad_v = 2.0 * diff_v if penalty == "quadratic" else np.where(
+            np.abs(diff_v) <= huber_delta, diff_v, huber_delta * np.sign(diff_v)
+        )
+        grad_smooth[:-1, :] += grad_v
+        grad_smooth[1:, :] -= grad_v
+
+        grad = grad_data + lambda_smooth * grad_smooth
+        x -= current_step * grad
+
+        # Clip every 30 iterations for stability
+        if it % 20 == 0:
+            x = np.clip(x, 0.0, 255.0)
+
+    return x
 
 
 def normalize_to_uint8(x: np.ndarray) -> np.ndarray:
     """Min-max normalize array to [0,255] uint8 for visualization."""
-    raise NotImplementedError("normalize_to_uint8 is not implemented")
+    x_min = x.min()
+    x_max = x.max()
+    if x_max == x_min:
+        return np.zeros_like(x, dtype=np.uint8)
+    normalized = (x - x_min) / (x_max - x_min) * 255.0
+    return np.clip(normalized, 0, 255).astype(np.uint8)
 
 
 def main() -> int:

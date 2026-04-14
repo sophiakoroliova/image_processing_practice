@@ -83,37 +83,32 @@ def mrf_denoise(
     """
     x = y.copy().astype(np.float32)
 
-    if penalty == "quadratic":
-        current_step = step * 0.032
-    else:
-        current_step = step
+    current_step = step * 0.5 if penalty == "quadratic" else step
 
     for it in range(num_iters):
         grad_data = 2.0 * (x - y)
         grad_smooth = np.zeros_like(x, dtype=np.float32)
 
-        # Horizontal
+        # Horizontal Smoothness (x_right - x_left)
         diff_h = x[:, 1:] - x[:, :-1]
         grad_h = 2.0 * diff_h if penalty == "quadratic" else np.where(
             np.abs(diff_h) <= huber_delta, diff_h, huber_delta * np.sign(diff_h)
         )
-        grad_smooth[:, :-1] += grad_h
-        grad_smooth[:, 1:] -= grad_h
+        grad_smooth[:, :-1] -= grad_h
+        grad_smooth[:, 1:] += grad_h
 
-        # Vertical
+        # Vertical Smoothness (x_down - x_up)
         diff_v = x[1:, :] - x[:-1, :]
         grad_v = 2.0 * diff_v if penalty == "quadratic" else np.where(
             np.abs(diff_v) <= huber_delta, diff_v, huber_delta * np.sign(diff_v)
         )
-        grad_smooth[:-1, :] += grad_v
-        grad_smooth[1:, :] -= grad_v
+        grad_smooth[:-1, :] -= grad_v
+        grad_smooth[1:, :] += grad_v
 
         grad = grad_data + lambda_smooth * grad_smooth
         x -= current_step * grad
 
-        # Clip every 30 iterations for stability
-        if it % 20 == 0:
-            x = np.clip(x, 0.0, 255.0)
+        x = np.clip(x, 0.0, 255.0)
 
     return x
 

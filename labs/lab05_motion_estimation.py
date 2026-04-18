@@ -26,7 +26,27 @@ def optical_flow_farneback(prev_gray: np.ndarray, next_gray: np.ndarray, **param
     Returns:
         Dense flow field `(H, W, 2)` as float array.
     """
-    raise NotImplementedError("optical_flow_farneback is not implemented")
+    # Default parameters for Farneback
+    default_params = dict(
+        pyr_scale=0.5,  # Image scale (<1) to build pyramids for each image
+        levels=3,  # Number of pyramid layers
+        winsize=15,  # Averaging window size
+        iterations=3,  # Number of iterations the algorithm does at each pyramid level
+        poly_n=5,  # Size of the pixel neighborhood used to find polynomial expansion
+        poly_sigma=1.2,  # Standard deviation of the Gaussian used to smooth derivatives
+        flags=0
+    )
+    # Update defaults with any user-provided params
+    default_params.update(params)
+
+    flow = cv2.calcOpticalFlowFarneback(
+        prev_gray,
+        next_gray,
+        None,
+        **default_params
+    )
+
+    return flow
 
 
 def flow_to_hsv(flow_xy: np.ndarray) -> np.ndarray:
@@ -39,7 +59,27 @@ def flow_to_hsv(flow_xy: np.ndarray) -> np.ndarray:
     Returns:
         `uint8` BGR image `(H,W,3)` suitable for `cv2.imwrite`.
     """
-    raise NotImplementedError("flow_to_hsv is not implemented")
+    h, w = flow_xy.shape[:2]
+    # Create an empty HSV image
+    hsv = np.zeros((h, w, 3), dtype=np.uint8)
+    hsv[..., 1] = 255  # Set saturation to maximum
+
+    # Split flow into horizontal (dx) and vertical (dy) components
+    dx = flow_xy[..., 0]
+    dy = flow_xy[..., 1]
+
+    # Calculate magnitude and angle of the vectors
+    mag, ang = cv2.cartToPolar(dx, dy)
+
+    # Map angle to Hue (OpenCV uses 0-180 for Hue in uint8)
+    hsv[..., 0] = ang * 180 / np.pi / 2
+
+    # Map magnitude to Value (brightness), normalized to 0-255
+    hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+
+    # Convert HSV back to BGR for display/saving
+    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    return bgr
 
 
 def main() -> int:
